@@ -19,7 +19,7 @@ module GContacts
 
       # Parse out all the relevant data
       entry.each do |key, unparsed|
-        if key =~ /^gd:/
+        if key =~ /^(gd|gContact):/ and key !~ /^gContact:groupMembershipInfo/
           if unparsed.is_a?(Array)
             @data[key] = unparsed.map {|v| parse_element(v)}
           else
