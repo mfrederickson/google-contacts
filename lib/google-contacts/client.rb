@@ -197,28 +197,20 @@ module GContacts
 
 
     ##
-    # Immediately updates the element on Google
-    # @param [GContacts::Element] Element to update
+    # Uploads the image to the contact's photo.
+    # @param [GContacts::Element] Element to update.
+    # @param [binary] image_data Image data to send.
+    # @param [String] content_type Content type of the image.
     #
     # @raise [Net::HTTPError]
-    # @raise [GContacts::InvalidResponse]
-    # @raise [GContacts::InvalidRequest]
-    # @raise [GContacts::InvalidKind]
     #
     # @return [GContacts::Element] Updated element returned from Google
-    def update_image!(element)
-# TODO: finish this      
-      uri = API_URI["#{element.category}s".to_sym]
-      raise InvalidKind, "Unsupported kind #{element.category}" unless uri
-
-      xml = "<?xml version='1.0' encoding='UTF-8'?>\n#{element.to_xml}"
-
-      data = Nori.parse(http_request(:put, URI(uri[:update] % [File.basename(element.id)]), :body => xml, :headers => {"Content-Type" => "application/atom+xml", "If-Match" => element.etag}), :nokogiri)
-      unless data["entry"]
-        raise InvalidResponse, "Updated but response wasn't a valid element"
-      end
-
-      Element.new(data["entry"])
+    def update_photo!(element, photo_data, content_type)
+      uri = API_URI[:photos]
+      headers = {"Content-Type" => content_type }
+      headers["If-Match"] = element.photo_etag if !element.photo_etag.blank?
+      data = http_request(:put, URI(uri[:update] % [File.basename(element.id)]), 
+        :body => photo_data, :headers => headers)
     end
 
 
