@@ -1,7 +1,7 @@
 module GContacts
   class Element
     attr_accessor :title, :content, :data, :category, :etag, :groups
-    attr_reader :id, :edit_uri, :modifier_flag, :updated, :batch, :photo_uri
+    attr_reader :id, :edit_uri, :modifier_flag, :updated, :batch, :photo_etag
 
     ##
     # Creates a new element by parsing the returned entry from Google
@@ -61,8 +61,10 @@ module GContacts
           if link["@rel"] == "edit"
             @edit_uri = URI(link["@href"])
             #break
-          elsif link["@rel"] =~ /rel#photo$/
-            @photo_uri = URI(link["@href"])
+          elsif link["@rel"] =~ /rel#photo$/ 
+            if !link["@gd:etag"].blank?
+              @photo_etag = link["@gd:etag"]
+            end
           end
         end
       end
