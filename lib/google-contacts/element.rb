@@ -48,12 +48,19 @@ module GContacts
           elsif $1 == "operation"
             @batch["operation"] = unparsed["@type"]
           end
+        elsif key =~ /^gContact:groupMembershipInfo/
+          if !unparsed.is_a?(Array)
+            unparsed = [ unparsed ]
+          end
+          unparsed.each do |item|
+            @groups << item["@href"] if item["@deleted"] != "true"
+          end
         end
       end
 
-      if entry["gContact:groupMembershipInfo"].is_a?(Hash)
-        @groups << entry["gContact:groupMembershipInfo"]["@href"] if entry["gContact:groupMembershipInfo"]["@deleted"] != "true"
-      end
+      # if entry["gContact:groupMembershipInfo"].is_a?(Hash)
+      #   @groups << entry["gContact:groupMembershipInfo"]["@href"] if entry["gContact:groupMembershipInfo"]["@deleted"] != "true"
+      # end
 
       # Need to know where to send the update request
       if entry["link"].is_a?(Array)
