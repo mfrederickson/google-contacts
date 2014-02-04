@@ -6,8 +6,22 @@ require "cgi"
 module GContacts
   class Client
     API_URI = {
-      :contacts => {:all => "https://www.google.com/m8/feeds/contacts/default/%s", :create => URI("https://www.google.com/m8/feeds/contacts/default/full"), :get => "https://www.google.com/m8/feeds/contacts/default/%s/%s", :update => "https://www.google.com/m8/feeds/contacts/default/full/%s", :batch => URI("https://www.google.com/m8/feeds/contacts/default/full/batch")},
-      :groups => {:all => "https://www.google.com/m8/feeds/groups/default/%s", :create => URI("https://www.google.com/m8/feeds/groups/default/full"), :get => "https://www.google.com/m8/feeds/groups/default/%s/%s", :update => "https://www.google.com/m8/feeds/groups/default/full/%s", :batch => URI("https://www.google.com/m8/feeds/groups/default/full/batch")}
+      :contacts => {
+        :all => "https://www.google.com/m8/feeds/contacts/default/%s", 
+        :create => URI("https://www.google.com/m8/feeds/contacts/default/full"), 
+        :get => "https://www.google.com/m8/feeds/contacts/default/%s/%s", 
+        :update => "https://www.google.com/m8/feeds/contacts/default/full/%s", 
+        :batch => URI("https://www.google.com/m8/feeds/contacts/default/full/batch")},
+      :groups => {
+        :all => "https://www.google.com/m8/feeds/groups/default/%s", 
+        :create => URI("https://www.google.com/m8/feeds/groups/default/full"), 
+        :get => "https://www.google.com/m8/feeds/groups/default/%s/%s", 
+        :update => "https://www.google.com/m8/feeds/groups/default/full/%s", 
+        :batch => URI("https://www.google.com/m8/feeds/groups/default/full/batch")},
+      :photos => {
+        :get => "https://www.google.com/m8/feeds/photos/%s/default/%s", 
+        :delete => "https://www.google.com/m8/feeds/photos/media/default/%s", 
+        :update => "https://www.google.com/m8/feeds/photos/media/default/%s"} 
     }
 
     ##
@@ -93,10 +107,39 @@ module GContacts
     #
     # @return [GContacts::Element] Single entry found on
     def get(id, args={})
+      media = (args[:api_type] == :photos || args[:type] == :media)
       uri = API_URI[args.delete(:api_type) || @options[:default_type]]
       raise ArgumentError, "Unsupported type given" unless uri
 
-      response = Nori.parse(http_request(:get, URI(uri[:get] % [args.delete(:type) || :full, id]), args), :nokogiri)
+      if !media
+        response = Nori.parse(http_request(:get, URI(uri[:get] % [args.delete(:type) || :full, id]), args), :nokogiri)
+        if response and response["entry"]
+          Element.new(response["entry"])
+        else
+          nil
+        end
+      else
+        response = http_request(:get, URI(uri[:get] % [args.delete(:type) || :full, id]), args)
+      end
+    end
+
+    ##
+    # Delete a contact photo
+    # @param [String] id ID to delete
+    # @param [Hash] args
+    # @option args [Hash, Optional] :params Query string arguments when sending the API request
+    # @option args [Hash, Optional] :headers Any additional headers to pass with the API request
+    # @option args [Symbol, Optional] :api_type Override which part of the API is called, can either be :contacts or :groups or :photos
+    #
+    # @raise [Net::HTTPError]
+    # @raise [GContacts::InvalidRequest]
+    #
+    # @return 
+    def delete(id, args={})
+      uri = API_URI[args.delete(:api_type) || :photos ]
+      raise ArgumentError, "Unsupported type given" unless uri
+
+      response = Nori.parse(http_request(:delete, URI(uri[:delete] % id), args), :nokogiri)
 
       if response and response["entry"]
         Element.new(response["entry"])
@@ -144,13 +187,40 @@ module GContacts
 
       xml = "<?xml version='1.0' encoding='UTF-8'?>\n#{element.to_xml}"
 
-      data = Nori.parse(http_request(:put, URI(uri[:get] % [:base, File.basename(element.id)]), :body => xml, :headers => {"Content-Type" => "application/atom+xml", "If-Match" => element.etag}), :nokogiri)
+      data = Nori.parse(http_request(:put, URI(uri[:update] % [File.basename(element.id)]), :body => xml, :headers => {"Content-Type" => "application/atom+xml", "If-Match" => element.etag}), :nokogiri)
       unless data["entry"]
         raise InvalidResponse, "Updated but response wasn't a valid element"
       end
 
       Element.new(data["entry"])
     end
+
+
+    ##
+    # Immediately updates the element on Google
+    # @param [GContacts::Element] Element to update
+    #
+    # @raise [Net::HTTPError]
+    # @raise [GContacts::InvalidResponse]
+    # @raise [GContacts::InvalidRequest]
+    # @raise [GContacts::InvalidKind]
+    #
+    # @return [GContacts::Element] Updated element returned from Google
+    def update_image!(element)
+# TODO: finish this      
+      uri = API_URI["#{element.category}s".to_sym]
+      raise InvalidKind, "Unsupported kind #{element.category}" unless uri
+
+      xml = "<?xml version='1.0' encoding='UTF-8'?>\n#{element.to_xml}"
+
+      data = Nori.parse(http_request(:put, URI(uri[:update] % [File.basename(element.id)]), :body => xml, :headers => {"Content-Type" => "application/atom+xml", "If-Match" => element.etag}), :nokogiri)
+      unless data["entry"]
+        raise InvalidResponse, "Updated but response wasn't a valid element"
+      end
+
+      Element.new(data["entry"])
+    end
+
 
     ##
     # Immediately removes the element on Google
@@ -235,14 +305,18 @@ module GContacts
       query_string = build_query_string(args[:params])
       request_uri = query_string ? "#{uri.request_uri}?#{query_string}" : uri.request_uri
 
+Rails.logger.debug("Request URI: #{request_uri}") if defined?(Rails)
+
       # GET
       if method == :get
         response = http.request_get(request_uri, headers)
       # POST
       elsif method == :post
+Rails.logger.debug("Post Data: #{args[:body]}") if defined?(Rails)
         response = http.request_post(request_uri, args.delete(:body), headers)
       # PUT
       elsif method == :put
+Rails.logger.debug("Put Data: #{args[:body]}") if defined?(Rails)
         response = http.request_put(request_uri, args.delete(:body), headers)
       # DELETE
       elsif method == :delete
@@ -250,6 +324,8 @@ module GContacts
       else
         raise ArgumentError, "Invalid method #{method}"
       end
+
+Rails.logger.debug("Response Body: #{response.body}") if defined?(Rails)
 
       if response.code == "400" or response.code == "412" or response.code == "404"
         raise InvalidRequest.new("#{response.body} (HTTP #{response.code})")

@@ -1,7 +1,7 @@
 module GContacts
   class Element
-    attr_accessor :title, :content, :data, :category, :etag, :group_id
-    attr_reader :id, :edit_uri, :modifier_flag, :updated, :batch
+    attr_accessor :title, :content, :data, :category, :etag, :groups
+    attr_reader :id, :edit_uri, :modifier_flag, :updated, :batch, :photo_uri
 
     ##
     # Creates a new element by parsing the returned entry from Google
@@ -9,6 +9,7 @@ module GContacts
     #
     def initialize(entry=nil)
       @data = {}
+      @groups = []
       return unless entry
 
       @id, @updated, @content, @title, @etag = entry["id"], Time.parse(entry["updated"]), entry["content"], entry["title"], entry["@gd:etag"]
@@ -51,8 +52,7 @@ module GContacts
       end
 
       if entry["gContact:groupMembershipInfo"].is_a?(Hash)
-        @modifier_flag = :delete if entry["gContact:groupMembershipInfo"]["@deleted"] == "true"
-        @group_id = entry["gContact:groupMembershipInfo"]["@href"]
+        @groups << entry["gContact:groupMembershipInfo"]["@href"] if entry["gContact:groupMembershipInfo"]["@deleted"] != "true"
       end
 
       # Need to know where to send the update request
@@ -60,7 +60,9 @@ module GContacts
         entry["link"].each do |link|
           if link["@rel"] == "edit"
             @edit_uri = URI(link["@href"])
-            break
+            #break
+          elsif link["@rel"] =~ /rel#photo$/
+            @photo_uri = URI(link["@href"])
           end
         end
       end
@@ -69,7 +71,7 @@ module GContacts
     ##
     # Converts the entry into XML to be sent to Google
     def to_xml(batch=false)
-      xml = "<atom:entry xmlns:atom='http://www.w3.org/2005/Atom' xmlns:gd='http://schemas.google.com/g/2005'"
+      xml = "<atom:entry xmlns:atom='http://www.w3.org/2005/Atom' xmlns:gd='http://schemas.google.com/g/2005' xmlns:gContact='http://schemas.google.com/contact/2008'"
       xml << " gd:etag='#{@etag}'" if @etag
       xml << ">\n"
 
@@ -88,7 +90,10 @@ module GContacts
         xml << "  <updated>#{Time.now.utc.iso8601}</updated>\n"
         xml << "  <atom:content type='text'>#{@content}</atom:content>\n"
         xml << "  <atom:title>#{@title}</atom:title>\n"
-        xml << "  <gContact:groupMembershipInfo deleted='false' href='#{@group_id}'/>\n" if @group_id
+        
+        @groups.each do |g|
+          xml << "  <gContact:groupMembershipInfo deleted='false' href='#{g}'/>\n"
+        end if !@groups.blank?
 
         @data.each do |key, parsed|
           xml << handle_data(key, parsed, 2)
@@ -133,6 +138,16 @@ module GContacts
     end
 
     alias to_s inspect
+
+    # Returns an array of values for the specified user defined field.
+    #
+    def udf(key)
+      matches = @data["gContact:userDefinedField"].select do |f|
+        f["@key"] == key
+      end
+
+      value = matches.collect {|e| e["@value"]} 
+    end
 
     private
     # Evil ahead
