@@ -297,18 +297,18 @@ module GContacts
       query_string = build_query_string(args[:params])
       request_uri = query_string ? "#{uri.request_uri}?#{query_string}" : uri.request_uri
 
-Rails.logger.debug("Request URI: #{request_uri}") if defined?(Rails)
+#Rails.logger.debug("Request URI: #{request_uri}") if defined?(Rails)
 
       # GET
       if method == :get
         response = http.request_get(request_uri, headers)
       # POST
       elsif method == :post
-Rails.logger.debug("Post Data: #{args[:body]}") if defined?(Rails)
+#Rails.logger.debug("Post Data: #{args[:body]}") if defined?(Rails)
         response = http.request_post(request_uri, args.delete(:body), headers)
       # PUT
       elsif method == :put
-Rails.logger.debug("Put Data: #{args[:body]}") if defined?(Rails)
+#Rails.logger.debug("Put Data: #{args[:body]}") if defined?(Rails)
         response = http.request_put(request_uri, args.delete(:body), headers)
       # DELETE
       elsif method == :delete
@@ -317,7 +317,7 @@ Rails.logger.debug("Put Data: #{args[:body]}") if defined?(Rails)
         raise ArgumentError, "Invalid method #{method}"
       end
 
-Rails.logger.debug("Response Body: #{response.body}") if defined?(Rails)
+#Rails.logger.debug("Response Body: #{response.body}") if defined?(Rails)
 
       if response.code == "400" or response.code == "412" or response.code == "404"
         raise InvalidRequest.new("#{response.body} (HTTP #{response.code})")
