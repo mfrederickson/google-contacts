@@ -95,7 +95,7 @@ module GContacts
       end
 
       unless @modifier_flag == :delete
-        escaped_content = REXML::Text.new(@content, false, nil, false).to_s
+        escaped_content = REXML::Text.new(@content, true, nil, false).to_s
         xml << "  <atom:category scheme='http://schemas.google.com/g/2005#kind' term='http://schemas.google.com/g/2008##{@category}'/>\n"
         xml << "  <updated>#{Time.now.utc.iso8601}</updated>\n"
         xml << "  <atom:content type='text'>#{escaped_content}</atom:content>\n"
