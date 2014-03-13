@@ -202,7 +202,10 @@ module GContacts
       # Just a string, can add it and exit quickly
       if !data.is_a?(Array) and !data.is_a?(Hash)
         xml << ">"
-        xml << data.to_s
+        # use escaped content since values such as people names may include amps like 'Dick & Mickey'
+        #xml << data.to_s
+        escaped_content = REXML::Text.new(data.to_s, true, nil, false).to_s
+        xml << escaped_content
         xml << "</#{tag}>\n"
         return xml
       # No other data to show, was just attributes
